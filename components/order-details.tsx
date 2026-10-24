@@ -14,7 +14,6 @@ export type TrackingResult = {
     warehouse_name: string | null;
     warehouse_city: string | null;
     agent_name: string | null;
-    agent_phone: string | null;
   } | null;
   items: Array<{
     product_id: number;
@@ -90,7 +89,6 @@ export function OrderDetails({ result, showFullPageLink = false }: { result: Tra
               <div><span>Warehouse</span><strong>{result.shipment.warehouse_name || "Not assigned"}</strong></div>
               <div><span>Dispatch city</span><strong>{result.shipment.warehouse_city || "Not available"}</strong></div>
               <div><span>Delivery agent</span><strong>{result.shipment.agent_name || "Not assigned"}</strong></div>
-              <div><span>Agent phone</span><strong>{result.shipment.agent_phone || "Not available"}</strong></div>
             </div>
           ) : <p className="empty">No shipment has been created for this order yet.</p>}
         </article>

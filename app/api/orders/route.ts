@@ -10,9 +10,25 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const search = (url.searchParams.get("search") ?? "").trim().slice(0, 100);
   const status = url.searchParams.get("status") ?? "all";
+  const dateFrom = url.searchParams.get("dateFrom") ?? "";
+  const dateTo = url.searchParams.get("dateTo") ?? "";
 
   if (!allowedStatuses.has(status)) {
     return NextResponse.json({ error: "Choose a valid order status filter." }, { status: 400 });
+  }
+
+  const isValidDate = (value: string) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+    const parsed = new Date(`${value}T00:00:00.000Z`);
+    return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+  };
+
+  if ((dateFrom && !isValidDate(dateFrom)) || (dateTo && !isValidDate(dateTo))) {
+    return NextResponse.json({ error: "Enter valid start and end dates." }, { status: 400 });
+  }
+
+  if (dateFrom && dateTo && dateFrom > dateTo) {
+    return NextResponse.json({ error: "The start date must be on or before the end date." }, { status: 400 });
   }
 
   const baseQuery = `
@@ -53,11 +69,11 @@ export async function GET(request: Request) {
     const [summaryResult, ordersResult] = await Promise.all([
       pool.query(
         `${baseQuery}
-         SELECT COUNT(*)::int AS total_orders,
-                COUNT(*) FILTER (WHERE status_group = 'delivered')::int AS delivered_orders,
-                COUNT(*) FILTER (WHERE status_group = 'pending')::int AS pending_orders,
-                COUNT(*) FILTER (WHERE status_group = 'in_transit')::int AS in_transit_orders,
-                COUNT(*) FILTER (WHERE status_group = 'other')::int AS other_orders
+         SELECT COUNT(*) AS total_orders,
+                COUNT(*) FILTER (WHERE status_group = 'delivered') AS delivered_orders,
+                COUNT(*) FILTER (WHERE status_group = 'pending') AS pending_orders,
+                COUNT(*) FILTER (WHERE status_group = 'in_transit') AS in_transit_orders,
+                COUNT(*) FILTER (WHERE status_group = 'other') AS other_orders
          FROM classified_orders`
       ),
       pool.query(
@@ -66,9 +82,11 @@ export async function GET(request: Request) {
          FROM classified_orders
          WHERE ($1 = '' OR order_id::text ILIKE '%' || $1 || '%' OR customer_name ILIKE '%' || $1 || '%')
            AND ($2 = 'all' OR status_group = $2)
+           AND ($3::date IS NULL OR order_date::date >= $3::date)
+           AND ($4::date IS NULL OR order_date::date <= $4::date)
          ORDER BY order_date DESC NULLS LAST, order_id DESC
          LIMIT 50`,
-        [search, status]
+        [search, status, dateFrom || null, dateTo || null]
       )
     ]);
 

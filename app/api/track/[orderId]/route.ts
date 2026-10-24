@@ -34,7 +34,7 @@ export async function GET(_request: Request, context: Context) {
     const shipmentResult = await pool.query(
       `SELECT s.shipment_id, s.shipment_status,
               w.warehouse_name, w.city AS warehouse_city,
-              da.name AS agent_name, da.phone AS agent_phone
+             da.name AS agent_name
        FROM shipments s
        LEFT JOIN warehouses w ON w.warehouse_id = s.warehouse_id
        LEFT JOIN delivery_agents da ON da.agent_id = s.agent_id

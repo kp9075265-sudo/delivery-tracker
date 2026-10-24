@@ -1,6 +1,6 @@
 # Delivery Tracking Management System
 
-A read-only delivery dashboard built with Next.js, TypeScript, and PostgreSQL. It displays live order counts, lets you search by order ID or customer name, filters by delivery status, and shows customer, shipment, payment, product, and tracking-history details.
+A read-only delivery dashboard built with Next.js, TypeScript, and PostgreSQL. It displays live order counts and status distribution, calculates delivered orders as a percentage of all orders, lets you search by order ID or customer name, filters by delivery status and order date, and shows customer, shipment, payment, product, and tracking-history details.
 
 ## Database connection
 
@@ -31,7 +31,9 @@ These names are based on the queries in this project. If your Neon database uses
 6. Visit <http://localhost:3000/api/health>. A successful `SELECT 1` returns `{"status":"ok","database":"connected"}`. Errors do not include the connection string.
 7. Search by an existing order ID or customer name. Select **View details**, then **Open details page**, to view its shipment, payment, products, and tracking updates at `/orders/[orderId]`.
 
-The dashboard displays the latest 50 matching orders. Its counts are calculated from database records. Status groups recognize common delivered, pending/processing, and in-transit wording; values not recognized are grouped as other. Shipment status is preferred when a shipment exists, otherwise the order status is used.
+The dashboard displays up to 50 matching orders. Its summary counts, chart, and delivery success rate use all database orders; the success rate is delivered orders divided by total orders and is unavailable when there are no orders. The table can be filtered by order date because `orders.order_date` is used by the existing order queries. Search and filters use parameterized SQL. Status groups recognize common delivered, pending/processing, and in-transit wording; values not recognized are grouped as other. Shipment status is preferred when a shipment exists, otherwise the order status is used.
+
+Shipment details use the existing `shipments.agent_id` relationship to show the assigned delivery-agent name. The API intentionally does not return the delivery agent's phone number on the public order-details route. This project does not provide user authentication; do not use it to publish private customer/order information without first adding access control.
 
 ## Configure Vercel
 

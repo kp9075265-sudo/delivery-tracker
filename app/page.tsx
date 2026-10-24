@@ -50,17 +50,24 @@ export default function Home() {
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [dashboardError, setDashboardError] = useState("");
   const [dashboardLoading, setDashboardLoading] = useState(true);
   const [result, setResult] = useState<TrackingResult | null>(null);
   const [detailError, setDetailError] = useState("");
   const [detailLoading, setDetailLoading] = useState(false);
 
-  const loadDashboard = useCallback(async (searchTerm: string, statusFilter: string) => {
+  const loadDashboard = useCallback(async (searchTerm: string, statusFilter: string, startDate: string, endDate: string) => {
     setDashboardLoading(true);
     setDashboardError("");
     try {
-      const params = new URLSearchParams({ search: searchTerm, status: statusFilter });
+      const params = new URLSearchParams({
+        search: searchTerm,
+        status: statusFilter,
+        dateFrom: startDate,
+        dateTo: endDate
+      });
       const response = await fetch(`/api/orders?${params.toString()}`);
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not load the orders dashboard.");
@@ -73,12 +80,12 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    void loadDashboard("", "all");
+    void loadDashboard("", "all", "", "");
   }, [loadDashboard]);
 
   async function searchOrders(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    await loadDashboard(search.trim(), status);
+    await loadDashboard(search.trim(), status, dateFrom, dateTo);
   }
 
   async function trackOrder(orderId: number | string) {
@@ -100,8 +107,20 @@ export default function Home() {
 
   async function changeStatus(value: string) {
     setStatus(value);
-    await loadDashboard(search.trim(), value);
+    await loadDashboard(search.trim(), value, dateFrom, dateTo);
   }
+
+  const statusCounts = dashboard ? [
+    { group: "delivered", label: "Delivered", value: Number(dashboard.summary.delivered_orders) },
+    { group: "pending", label: "Pending / processing", value: Number(dashboard.summary.pending_orders) },
+    { group: "in-transit", label: "In transit", value: Number(dashboard.summary.in_transit_orders) },
+    { group: "other", label: "Other / unrecognized", value: Number(dashboard.summary.other_orders) }
+  ] : [];
+  const totalOrders = Number(dashboard?.summary.total_orders ?? 0);
+  const deliveredOrders = Number(dashboard?.summary.delivered_orders ?? 0);
+  const deliverySuccessRate = totalOrders > 0
+    ? Math.round((deliveredOrders / totalOrders) * 1000) / 10
+    : null;
 
   return (
     <main className="app-shell">
@@ -120,7 +139,7 @@ export default function Home() {
             <h1>Delivery dashboard</h1>
             <p className="page-subtitle">A live view of orders and their latest delivery status.</p>
           </div>
-          <button className="secondary-button" type="button" onClick={() => void loadDashboard(search.trim(), status)} disabled={dashboardLoading}>
+          <button className="secondary-button" type="button" onClick={() => void loadDashboard(search.trim(), status, dateFrom, dateTo)} disabled={dashboardLoading}>
             {dashboardLoading ? "Refreshing…" : "Refresh data"}
           </button>
         </header>
@@ -142,6 +161,43 @@ export default function Home() {
           ))}
         </section>
 
+        <section className="analytics-grid" aria-label="Delivery analytics" aria-busy={dashboardLoading}>
+          <article className="panel success-panel">
+            <p className="section-kicker">DELIVERY PERFORMANCE</p>
+            <h2>Delivery success</h2>
+            <strong className="success-rate">
+              {dashboardLoading && !dashboard ? "…" : deliverySuccessRate == null ? "—" : `${deliverySuccessRate}%`}
+            </strong>
+            <p className="muted">
+              {totalOrders > 0
+                ? `${deliveredOrders.toLocaleString()} delivered out of ${totalOrders.toLocaleString()} total orders.`
+                : "No orders are available to calculate a delivery rate."}
+            </p>
+          </article>
+          <article className="panel distribution-panel">
+            <div className="panel-heading">
+              <div><p className="section-kicker">LIVE DATABASE COUNTS</p><h2>Order status distribution</h2></div>
+            </div>
+            {dashboard && totalOrders > 0 ? (
+              <div className="distribution-chart" role="img" aria-label={`Order status distribution across ${totalOrders} orders`}>
+                {statusCounts.map((item) => {
+                  const percentage = (item.value / totalOrders) * 100;
+                  return (
+                    <div className="chart-row" key={item.group}>
+                      <div className="chart-label"><span>{item.label}</span><strong>{item.value.toLocaleString()}</strong></div>
+                      <div className="chart-track" aria-hidden="true">
+                        <span className={`chart-bar ${item.group}`} style={{ width: `${percentage}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="empty">{dashboardLoading ? "Loading status distribution…" : "No order data is available yet."}</p>
+            )}
+          </article>
+        </section>
+
         <section className="panel orders-panel" aria-labelledby="orders-heading">
           <div className="panel-heading">
             <div>
@@ -149,7 +205,7 @@ export default function Home() {
               <h2 id="orders-heading">Recent orders</h2>
             </div>
             <span className="product-count">
-              {dashboard ? `Showing up to ${dashboard.limit} matching orders` : "Latest orders"}
+              {dashboard ? `Showing ${dashboard.orders.length} of up to ${dashboard.limit} matching orders` : "Latest orders"}
             </span>
           </div>
 
@@ -174,6 +230,14 @@ export default function Home() {
                 <option value="delivered">Delivered</option>
                 <option value="other">Other / unrecognized</option>
               </select>
+            </div>
+            <div className="date-field">
+              <label htmlFor="date-from">From order date</label>
+              <input id="date-from" type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
+            </div>
+            <div className="date-field">
+              <label htmlFor="date-to">To order date</label>
+              <input id="date-to" type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
             </div>
             <button className="primary-button search-button" type="submit" disabled={dashboardLoading}>
               {dashboardLoading ? "Searching…" : "Search"}

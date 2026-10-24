@@ -235,6 +235,91 @@ button:disabled {
   border-top: 3px solid #5e86bb;
 }
 
+.analytics-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.6fr);
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.success-panel {
+  display: flex;
+  min-height: 220px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.success-rate {
+  display: block;
+  margin-top: 12px;
+  color: var(--green);
+  font-size: clamp(38px, 5vw, 52px);
+  letter-spacing: -2px;
+  line-height: 1;
+}
+
+.success-panel .muted {
+  max-width: 260px;
+}
+
+.distribution-panel {
+  min-width: 0;
+}
+
+.distribution-chart {
+  display: grid;
+  gap: 12px;
+}
+
+.chart-row {
+  display: grid;
+  gap: 6px;
+}
+
+.chart-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #526158;
+  font-size: 12px;
+}
+
+.chart-label strong {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-track {
+  height: 9px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: #edf1ee;
+}
+
+.chart-bar {
+  display: block;
+  height: 100%;
+  min-width: 0;
+  border-radius: inherit;
+}
+
+.chart-bar.delivered {
+  background: #3d9867;
+}
+
+.chart-bar.pending {
+  background: #d3953c;
+}
+
+.chart-bar.in-transit {
+  background: #5e86bb;
+}
+
+.chart-bar.other {
+  background: #87938b;
+}
+
 .panel {
   padding: 21px;
 }
@@ -261,7 +346,7 @@ button:disabled {
 
 .filters {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) minmax(180px, 230px) auto;
+  grid-template-columns: minmax(190px, 1fr) minmax(160px, 190px) repeat(2, minmax(135px, 155px)) auto;
   align-items: end;
   gap: 12px;
   margin-bottom: 17px;
@@ -578,6 +663,10 @@ footer > span:first-child {
   .search-button {
     grid-column: 1 / -1;
   }
+
+  .analytics-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
+  }
 }
 
 @media (max-width: 600px) {
@@ -608,7 +697,8 @@ footer > span:first-child {
 
   .summary-grid,
   .detail-summary,
-  .content-grid {
+  .content-grid,
+  .analytics-grid {
     grid-template-columns: 1fr;
   }
 
@@ -631,6 +721,10 @@ footer > span:first-child {
   .panel-heading {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .success-panel {
+    min-height: 180px;
   }
 
   .detail-list > div {
