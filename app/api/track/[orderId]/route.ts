@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { pool } from "@/lib/db";
+import { DatabaseConfigurationError, getPool } from "@/lib/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,11 +9,12 @@ type Context = { params: Promise<{ orderId: string }> };
 export async function GET(_request: Request, context: Context) {
   const { orderId } = await context.params;
 
-  if (!/^\d+$/.test(orderId)) {
+  if (!/^\d+$/.test(orderId) || !Number.isSafeInteger(Number(orderId))) {
     return NextResponse.json({ error: "Order ID must be a number." }, { status: 400 });
   }
 
   try {
+    const pool = getPool();
     const orderResult = await pool.query(
       `SELECT o.order_id, o.order_date, o.order_status, o.total_amount,
               CONCAT_WS(' ', c.first_name, c.last_name) AS customer_name
@@ -84,9 +85,13 @@ export async function GET(_request: Request, context: Context) {
       payment: paymentResult.rows[0] ?? null
     });
   } catch (error) {
-    console.error("Tracking API error:", error);
+    if (error instanceof DatabaseConfigurationError) {
+      return NextResponse.json({ error: error.message }, { status: 503 });
+    }
+
+    console.error("Tracking API database query failed.");
     return NextResponse.json(
-      { error: "Database query failed. Check DATABASE_URL and confirm that your table and column names match the project schema." },
+      { error: "Could not load this order. Check the database connection and confirm the tables match the documented schema." },
       { status: 500 }
     );
   }

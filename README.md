@@ -1,34 +1,12 @@
-# Delivery Tracker (Vercel + PostgreSQL)
+# Delivery Tracking Management System
 
-A delivery-tracking website that looks up an order ID and displays customer/order details, products in the order, payment status, shipment information, delivery agent, warehouse, and tracking history.
+A read-only delivery dashboard built with Next.js, TypeScript, and PostgreSQL. It displays live order counts, lets you search by order ID or customer name, filters by delivery status, and shows customer, shipment, payment, product, and tracking-history details.
 
-## Important: database hosting
+## Database connection
 
-Vercel cannot connect to PostgreSQL running only on your own computer through pgAdmin. Your database must be reachable from the internet using a hosted PostgreSQL provider such as Neon or Supabase. Import your existing database backup there first. Keep your original database unchanged.
+The server connects with the `pg` package using `DATABASE_URL`. It does not use an ORM and it does not create, delete, or alter database tables. The connection pool is reused by the server, and non-local PostgreSQL connections use TLS with certificate and hostname verification.
 
-## 1. Install and run locally
-
-1. Install Node.js LTS from https://nodejs.org/
-2. Extract this project ZIP and open the folder in VS Code.
-3. Open the VS Code terminal in this folder and run:
-
-   ```bash
-   npm install
-   ```
-
-4. Copy `.env.example` to `.env.local`.
-5. Replace `DATABASE_URL` in `.env.local` with your hosted PostgreSQL connection string. Do not share it or commit it to GitHub.
-6. Run:
-
-   ```bash
-   npm run dev
-   ```
-
-7. Open http://localhost:3000 and enter an existing numeric `order_id`.
-
-## 2. Database schema expected
-
-The API expects the existing tables and columns below:
+The SQL uses the existing project schema:
 
 - `orders(order_id, customer_id, order_date, order_status, total_amount)`
 - `customers(customer_id, first_name, last_name)`
@@ -41,27 +19,38 @@ The API expects the existing tables and columns below:
 - `categories(category_id, category_name)`
 - `payments(payment_id, order_id, payment_method, payment_status, payment_date)`
 
-If your actual schema uses different column names, update the SQL in `app/api/track/[orderId]/route.ts` to match it. The app does not create, delete, or alter tables.
+These names are based on the queries in this project. If your Neon database uses different names, verify the schema before editing the SQL. The project never runs schema migrations or writes to the database.
 
-## 3. Deploy to Vercel
+## Run locally
 
-1. Push the extracted project folder to a GitHub repository.
-2. Sign in at https://vercel.com and import that repository.
-3. In Vercel, open **Project → Settings → Environment Variables**.
-4. Add `DATABASE_URL` and paste the hosted PostgreSQL connection string as its value.
-5. Apply it to Production (and Preview if needed), save, then redeploy.
-6. Open the deployed URL and test using a real order ID.
+1. Install Node.js LTS and open this folder in VS Code.
+2. In the terminal, run `npm install`.
+3. If `.env.local` does not already exist, copy `.env.example` to `.env.local`. If it already exists, keep it and do not overwrite it.
+4. Open `.env.local` on your computer and replace the example `DATABASE_URL` with the connection string from your Neon dashboard. Do not paste the real value into GitHub, chat, screenshots, or frontend code.
+5. Start the development server with `npm run dev`, then open <http://localhost:3000>.
+6. Visit <http://localhost:3000/api/health>. A successful `SELECT 1` returns `{"status":"ok","database":"connected"}`. Errors do not include the connection string.
+7. Search by an existing order ID or customer name. Select **View details**, then **Open details page**, to view its shipment, payment, products, and tracking updates at `/orders/[orderId]`.
 
-Do not put database credentials in frontend files or commit `.env.local`.
+The dashboard displays the latest 50 matching orders. Its counts are calculated from database records. Status groups recognize common delivered, pending/processing, and in-transit wording; values not recognized are grouped as other. Shipment status is preferred when a shipment exists, otherwise the order status is used.
 
-## 4. If the API returns a database error
+## Configure Vercel
 
-- Confirm `DATABASE_URL` is the hosted database connection string.
-- Confirm the hosted database contains your imported tables and records.
-- Compare actual table/column names with the schema above.
-- Check Vercel **Project → Logs** for the underlying server error.
-- For production, use the provider's recommended pooled connection string if connection limits become an issue.
+1. Open your project in Vercel and go to **Settings → Environment Variables**.
+2. Add a variable named `DATABASE_URL` and enter the Neon connection string directly in Vercel. Never expose or commit its value.
+3. Enable it for:
+   - **Development** if you use Vercel CLI to run the project locally.
+   - **Preview** to connect preview deployments to Neon.
+   - **Production** for the live website.
+4. Save the variable. Environment-variable changes apply to new deployments, so go to **Deployments**, open the latest production deployment, and choose **Redeploy** (or push a new commit).
+5. After deployment, visit `https://your-domain/api/health`. A connected response verifies that the deployed function ran `SELECT 1`; an error response means the database connection still needs attention.
 
-## Current scope
+This repository uses the standard Next.js Vercel build settings and does not require a custom `vercel.json`. No production Vercel settings are changed by the project code.
 
-This starter is a customer-facing order tracker with read-only database access. It does not change order status or create tracking updates from the public page. Add authentication and authorization before building any staff/admin update screens.
+## Troubleshooting and checks
+
+- Missing or malformed `DATABASE_URL` produces a setup message. Add the variable locally or in the Vercel environment where the app runs.
+- If `/api/health` reports that the database is unavailable, check the Neon connection string, database availability, and Vercel function logs. Do not share the connection string while troubleshooting.
+- If order queries fail after a successful health check, compare the Neon tables and columns with the list above.
+- `npx tsc --noEmit` checks TypeScript and `npm run build` creates a production build. This project does not currently define an npm lint script.
+
+The public application is read-only. It does not update order status or create tracking updates. Add authentication and server-side authorization before implementing staff/admin write features.

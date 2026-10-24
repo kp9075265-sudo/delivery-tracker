@@ -1,39 +1,34 @@
- "use client";
+"use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
+import { OrderDetails, type TrackingResult } from "@/components/order-details";
 
-type TrackingEvent = {
-  tracking_id: number;
-  current_location: string | null;
-  status: string | null;
-  update_time: string | null;
+type StatusGroup = "pending" | "in_transit" | "delivered" | "other";
+
+type DashboardData = {
+  summary: {
+    total_orders: number | string;
+    delivered_orders: number | string;
+    pending_orders: number | string;
+    in_transit_orders: number | string;
+    other_orders: number | string;
+  };
+  orders: Array<{
+    order_id: number | string;
+    order_date: string | null;
+    display_status: string | null;
+    status_group: StatusGroup;
+    customer_name: string | null;
+    total_amount: number | string | null;
+  }>;
+  limit: number;
 };
 
-type TrackingResult = {
-  order: {
-    order_id: number;
-    order_date: string | null;
-    order_status: string | null;
-    total_amount: number | string | null;
-    customer_name: string | null;
-  };
-  shipment: {
-    shipment_id: number;
-    shipment_status: string | null;
-    warehouse_name: string | null;
-    warehouse_city: string | null;
-    agent_name: string | null;
-    agent_phone: string | null;
-  } | null;
-  items: Array<{
-    product_id: number;
-    product_name: string;
-    quantity: number;
-    price: number | string;
-    category_name: string | null;
-  }>;
-  tracking: TrackingEvent[];
-  payment: { payment_method: string | null; payment_status: string | null } | null;
+const statusLabels: Record<StatusGroup, string> = {
+  pending: "Pending / processing",
+  in_transit: "In transit",
+  delivered: "Delivered",
+  other: "Other status"
 };
 
 function formatDate(value: string | null | undefined) {
@@ -42,143 +37,188 @@ function formatDate(value: string | null | undefined) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
 }
 
-function statusClass(value: string | null | undefined) {
-  const status = (value || "").toLowerCase();
-  if (status.includes("deliver")) return "status delivered";
-  if (status.includes("pending") || status.includes("process")) return "status pending";
-  return "status";
+function formatAmount(value: number | string | null) {
+  if (value == null || !Number.isFinite(Number(value))) return "Not available";
+  return `₹${Number(value).toFixed(2)}`;
+}
+
+function statusClass(group: StatusGroup | null | undefined) {
+  return `status${group ? ` ${group.replace("_", "-")}` : ""}`;
 }
 
 export default function Home() {
-  const [orderId, setOrderId] = useState("");
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("all");
+  const [dashboardError, setDashboardError] = useState("");
+  const [dashboardLoading, setDashboardLoading] = useState(true);
   const [result, setResult] = useState<TrackingResult | null>(null);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [detailError, setDetailError] = useState("");
+  const [detailLoading, setDetailLoading] = useState(false);
 
-  async function trackOrder(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError("");
-    setResult(null);
-
-    const cleanId = orderId.trim();
-    if (!cleanId || !/^\d+$/.test(cleanId)) {
-      setError("Enter a valid numeric order ID.");
-      return;
-    }
-
-    setLoading(true);
+  const loadDashboard = useCallback(async (searchTerm: string, statusFilter: string) => {
+    setDashboardLoading(true);
+    setDashboardError("");
     try {
-      const response = await fetch(`/api/track/${encodeURIComponent(cleanId)}`);
+      const params = new URLSearchParams({ search: searchTerm, status: statusFilter });
+      const response = await fetch(`/api/orders?${params.toString()}`);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not load the orders dashboard.");
+      setDashboard(data);
+    } catch (error) {
+      setDashboardError(error instanceof Error ? error.message : "Something went wrong. Try again.");
+    } finally {
+      setDashboardLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadDashboard("", "all");
+  }, [loadDashboard]);
+
+  async function searchOrders(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await loadDashboard(search.trim(), status);
+  }
+
+  async function trackOrder(orderId: number | string) {
+    setDetailError("");
+    setResult(null);
+    setDetailLoading(true);
+    try {
+      const response = await fetch(`/api/track/${encodeURIComponent(String(orderId))}`);
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not find this order.");
       setResult(data);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong. Try again.");
+      document.getElementById("order-details")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch (error) {
+      setDetailError(error instanceof Error ? error.message : "Something went wrong. Try again.");
     } finally {
-      setLoading(false);
+      setDetailLoading(false);
     }
   }
 
+  async function changeStatus(value: string) {
+    setStatus(value);
+    await loadDashboard(search.trim(), value);
+  }
+
   return (
-    <main>
-      <nav className="topbar">
-        <a className="brand" href="#"><span className="brand-icon">T</span> trackly<span className="brand-dot">.</span></a>
-        <span className="nav-label">DELIVERY TRACKING</span>
+    <main className="app-shell">
+      <nav className="topbar" aria-label="Main navigation">
+        <a className="brand" href="/" aria-label="Trackly dashboard">
+          <span className="brand-icon" aria-hidden="true">T</span>
+          <span>trackly<span className="brand-dot">.</span></span>
+        </a>
+        <span className="nav-label">DELIVERY OPERATIONS</span>
       </nav>
 
-      <section className="hero">
-        <div className="eyebrow"><span className="live-dot" /> DELIVERY TRACKING, MADE SIMPLE</div>
-        <h1>Your delivery.<br /><span>Every step of the way.</span></h1>
-        <p className="hero-copy">Track your order and see its latest status, shipment details, and product information in one place.</p>
-
-        <form className="track-form" onSubmit={trackOrder}>
-          <label htmlFor="orderId">ORDER ID</label>
-          <div className="input-row">
-            <input
-              id="orderId"
-              value={orderId}
-              onChange={(e) => setOrderId(e.target.value)}
-              placeholder="Enter your order ID"
-              inputMode="numeric"
-              aria-describedby="form-help"
-            />
-            <button type="submit" disabled={loading}>{loading ? "Searching…" : "Track order"} <span aria-hidden="true">→</span></button>
+      <div className="dashboard">
+        <header className="page-heading">
+          <div>
+            <p className="section-kicker">OVERVIEW</p>
+            <h1>Delivery dashboard</h1>
+            <p className="page-subtitle">A live view of orders and their latest delivery status.</p>
           </div>
-          <small id="form-help">Use the order ID stored in your database.</small>
-        </form>
-        {error && <div className="error-box" role="alert">{error}</div>}
-      </section>
+          <button className="secondary-button" type="button" onClick={() => void loadDashboard(search.trim(), status)} disabled={dashboardLoading}>
+            {dashboardLoading ? "Refreshing…" : "Refresh data"}
+          </button>
+        </header>
 
-      {result && (
-        <section className="results" aria-live="polite">
-          <div className="result-heading">
+        {dashboardError && <div className="error-box" role="alert">{dashboardError}</div>}
+
+        <section className="summary-grid" aria-label="Order summary" aria-busy={dashboardLoading}>
+          {[
+            { label: "Total orders", value: dashboard?.summary.total_orders, tone: "neutral" },
+            { label: "Delivered", value: dashboard?.summary.delivered_orders, tone: "delivered" },
+            { label: "Pending / processing", value: dashboard?.summary.pending_orders, tone: "pending" },
+            { label: "In transit", value: dashboard?.summary.in_transit_orders, tone: "transit" }
+          ].map((card) => (
+            <article className={`summary-card ${card.tone}`} key={card.label}>
+              <span className="card-label">{card.label}</span>
+              <strong>{dashboardLoading && !dashboard ? "…" : Number(card.value ?? 0).toLocaleString()}</strong>
+              <span className="summary-note">Live database count</span>
+            </article>
+          ))}
+        </section>
+
+        <section className="panel orders-panel" aria-labelledby="orders-heading">
+          <div className="panel-heading">
             <div>
-              <p className="section-kicker">TRACKING RESULT</p>
-              <h2>Order #{result.order.order_id}</h2>
-              <p className="muted">Placed {formatDate(result.order.order_date)}</p>
+              <p className="section-kicker">ORDER MANAGEMENT</p>
+              <h2 id="orders-heading">Recent orders</h2>
             </div>
-            <span className={statusClass(result.shipment?.shipment_status || result.order.order_status)}>
-              {result.shipment?.shipment_status || result.order.order_status || "Status unavailable"}
+            <span className="product-count">
+              {dashboard ? `Showing up to ${dashboard.limit} matching orders` : "Latest orders"}
             </span>
           </div>
 
-          <div className="summary-grid">
-            <article className="info-card">
-              <span className="card-label">CUSTOMER</span>
-              <strong>{result.order.customer_name || "Customer details unavailable"}</strong>
-            </article>
-            <article className="info-card">
-              <span className="card-label">ORDER TOTAL</span>
-              <strong>{result.order.total_amount == null ? "Not available" : `₹${Number(result.order.total_amount).toFixed(2)}`}</strong>
-            </article>
-            <article className="info-card">
-              <span className="card-label">PAYMENT</span>
-              <strong>{result.payment?.payment_status || "Not available"}</strong>
-              <span className="muted">{result.payment?.payment_method || ""}</span>
-            </article>
-          </div>
+          <form className="filters" onSubmit={searchOrders}>
+            <div className="search-field">
+              <label htmlFor="order-search">Search orders</label>
+              <input
+                id="order-search"
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Order ID or customer name"
+                autoComplete="off"
+              />
+            </div>
+            <div className="status-field">
+              <label htmlFor="status-filter">Filter by status</label>
+              <select id="status-filter" value={status} onChange={(event) => void changeStatus(event.target.value)}>
+                <option value="all">All statuses</option>
+                <option value="pending">Pending / processing</option>
+                <option value="in_transit">In transit</option>
+                <option value="delivered">Delivered</option>
+                <option value="other">Other / unrecognized</option>
+              </select>
+            </div>
+            <button className="primary-button search-button" type="submit" disabled={dashboardLoading}>
+              {dashboardLoading ? "Searching…" : "Search"}
+            </button>
+          </form>
 
-          <div className="content-grid">
-            <article className="panel">
-              <div className="panel-heading"><div><p className="section-kicker">YOUR PACKAGE</p><h3>Shipment details</h3></div><span className="package-icon">▣</span></div>
-              {result.shipment ? (
-                <div className="detail-list">
-                  <div><span>Shipment ID</span><strong>#{result.shipment.shipment_id}</strong></div>
-                  <div><span>Warehouse</span><strong>{result.shipment.warehouse_name || "Not assigned"}</strong></div>
-                  <div><span>Dispatch city</span><strong>{result.shipment.warehouse_city || "Not available"}</strong></div>
-                  <div><span>Delivery agent</span><strong>{result.shipment.agent_name || "Not assigned"}</strong></div>
-                  <div><span>Agent phone</span><strong>{result.shipment.agent_phone || "Not available"}</strong></div>
-                </div>
-              ) : <p className="empty">No shipment has been created for this order yet.</p>}
-            </article>
-
-            <article className="panel">
-              <div className="panel-heading"><div><p className="section-kicker">LIVE UPDATES</p><h3>Tracking history</h3></div><span className="package-icon">⌁</span></div>
-              {result.tracking.length ? (
-                <ol className="timeline">
-                  {result.tracking.map((event) => (
-                    <li key={event.tracking_id}>
-                      <span className="timeline-dot" />
-                      <div><strong>{event.status || "Update"}</strong><p>{event.current_location || "Location not provided"}</p><small>{formatDate(event.update_time)}</small></div>
-                    </li>
+          {dashboardLoading && <p className="loading-message" role="status">Loading orders from the database…</p>}
+          {!dashboardLoading && !dashboardError && dashboard?.orders.length === 0 && (
+            <p className="empty">No orders match this search. Try another ID, customer name, or status.</p>
+          )}
+          {dashboard?.orders.length ? (
+            <div className="table-wrap" aria-busy={dashboardLoading}>
+              <table>
+                <thead>
+                  <tr><th scope="col">ORDER</th><th scope="col">CUSTOMER</th><th scope="col">DATE</th><th scope="col">STATUS</th><th scope="col">TOTAL</th><th scope="col"><span className="sr-only">Actions</span></th></tr>
+                </thead>
+                <tbody>
+                  {dashboard.orders.map((order) => (
+                    <tr key={String(order.order_id)}>
+                      <td><strong>#{order.order_id}</strong></td>
+                      <td>{order.customer_name || "Customer details unavailable"}</td>
+                      <td>{formatDate(order.order_date)}</td>
+                      <td>
+                        <span className={statusClass(order.status_group)}>{order.display_status || statusLabels[order.status_group]}</span>
+                      </td>
+                      <td>{formatAmount(order.total_amount)}</td>
+                      <td>
+                        <button className="text-button" type="button" onClick={() => void trackOrder(order.order_id)} disabled={detailLoading}>
+                          {detailLoading ? "Loading…" : "View details"}
+                        </button>
+                      </td>
+                    </tr>
                   ))}
-                </ol>
-              ) : <p className="empty">No tracking updates are available yet.</p>}
-            </article>
-          </div>
-
-          <article className="panel products-panel">
-            <div className="panel-heading"><div><p className="section-kicker">ORDER CONTENTS</p><h3>Products in this order</h3></div><span className="product-count">{result.items.length} item type(s)</span></div>
-            {result.items.length ? (
-              <div className="table-wrap"><table><thead><tr><th>PRODUCT</th><th>CATEGORY</th><th>QUANTITY</th><th>UNIT PRICE</th><th>SUBTOTAL</th></tr></thead>
-                <tbody>{result.items.map((item) => <tr key={item.product_id}><td><strong>{item.product_name}</strong><small>Product #{item.product_id}</small></td><td>{item.category_name || "Uncategorized"}</td><td>{item.quantity}</td><td>₹{Number(item.price).toFixed(2)}</td><td>₹{(Number(item.price) * Number(item.quantity)).toFixed(2)}</td></tr>)}</tbody>
-              </table></div>
-            ) : <p className="empty">No product items are recorded for this order.</p>}
-          </article>
+                </tbody>
+              </table>
+            </div>
+          ) : null}
         </section>
-      )}
 
-      <footer><span>trackly<span className="brand-dot">.</span></span><span>Delivery information connected to your database.</span></footer>
+        {detailError && <div className="error-box detail-error" role="alert">{detailError}</div>}
+
+        {result && <OrderDetails result={result} showFullPageLink />}
+      </div>
+
+      <footer><span>trackly<span className="brand-dot">.</span></span><span>Order and shipment data comes from your PostgreSQL database.</span></footer>
     </main>
   );
 }
