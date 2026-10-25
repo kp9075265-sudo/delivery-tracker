@@ -43,7 +43,10 @@ export default function OrderPage() {
           <span className="brand-icon" aria-hidden="true">T</span>
           <span>trackly<span className="brand-dot">.</span></span>
         </Link>
-        <span className="nav-label">ORDER DETAILS</span>
+        <div className="nav-actions">
+          <span className="nav-label">ORDER DETAILS</span>
+          <Link className="primary-button nav-create" href="/admin">Admin</Link>
+        </div>
       </nav>
       <div className="dashboard">
         <header className="page-heading">

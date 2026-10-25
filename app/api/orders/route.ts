@@ -38,11 +38,9 @@ export async function GET(request: Request) {
       ORDER BY order_id, shipment_id DESC
     ),
     order_rows AS (
-      SELECT o.order_id, o.order_date, o.order_status, o.total_amount,
-             CONCAT_WS(' ', c.first_name, c.last_name) AS customer_name,
+      SELECT o.order_id, o.order_date, o.order_status,
              COALESCE(NULLIF(BTRIM(ls.shipment_status), ''), o.order_status) AS display_status
       FROM orders o
-      LEFT JOIN customers c ON c.customer_id = o.customer_id
       LEFT JOIN latest_shipments ls ON ls.order_id = o.order_id
     ),
     classified_orders AS (
@@ -57,7 +55,8 @@ export async function GET(request: Request) {
                  OR LOWER(COALESCE(display_status, '')) LIKE '%dispatched%'
                  OR LOWER(COALESCE(display_status, '')) LIKE '%out for delivery%' THEN 'in_transit'
                WHEN LOWER(COALESCE(display_status, '')) LIKE '%pending%'
-                 OR LOWER(COALESCE(display_status, '')) LIKE '%process%' THEN 'pending'
+                 OR LOWER(COALESCE(display_status, '')) LIKE '%process%'
+                 OR LOWER(COALESCE(display_status, '')) LIKE '%placed%' THEN 'pending'
                ELSE 'other'
              END AS status_group
       FROM order_rows
@@ -78,9 +77,9 @@ export async function GET(request: Request) {
       ),
       pool.query(
         `${baseQuery}
-         SELECT order_id, order_date, display_status, status_group, customer_name, total_amount
+         SELECT order_id, order_date, display_status, status_group
          FROM classified_orders
-         WHERE ($1 = '' OR order_id::text ILIKE '%' || $1 || '%' OR customer_name ILIKE '%' || $1 || '%')
+         WHERE ($1 = '' OR order_id::text ILIKE '%' || $1 || '%')
            AND ($2 = 'all' OR status_group = $2)
            AND ($3::date IS NULL OR order_date::date >= $3::date)
            AND ($4::date IS NULL OR order_date::date <= $4::date)

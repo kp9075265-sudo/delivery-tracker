@@ -7,6 +7,7 @@ export type TrackingResult = {
     order_status: string | null;
     total_amount: number | string | null;
     customer_name: string | null;
+    delivery_address: string | null;
   };
   shipment: {
     shipment_id: number;
@@ -29,6 +30,7 @@ export type TrackingResult = {
     update_time: string | null;
   }>;
   payment: { payment_method: string | null; payment_status: string | null } | null;
+  publicTracking?: boolean;
 };
 
 type StatusGroup = "pending" | "in_transit" | "delivered" | "other";
@@ -74,11 +76,12 @@ export function OrderDetails({ result, showFullPageLink = false }: { result: Tra
         </div>
       </div>
 
-      <div className="summary-grid detail-summary">
+      {!result.publicTracking && <div className="summary-grid detail-summary">
         <article className="info-card"><span className="card-label">CUSTOMER</span><strong>{result.order.customer_name || "Customer details unavailable"}</strong></article>
         <article className="info-card"><span className="card-label">ORDER TOTAL</span><strong>{formatAmount(result.order.total_amount)}</strong></article>
         <article className="info-card"><span className="card-label">PAYMENT</span><strong>{result.payment?.payment_status || "Not available"}</strong><span className="muted">{result.payment?.payment_method || ""}</span></article>
-      </div>
+        <article className="info-card"><span className="card-label">DELIVERY ADDRESS</span><strong>{result.order.delivery_address || "No address saved for this order"}</strong></article>
+      </div>}
 
       <div className="content-grid">
         <article className="panel">
@@ -86,9 +89,11 @@ export function OrderDetails({ result, showFullPageLink = false }: { result: Tra
           {result.shipment ? (
             <div className="detail-list">
               <div><span>Shipment ID</span><strong>#{result.shipment.shipment_id}</strong></div>
-              <div><span>Warehouse</span><strong>{result.shipment.warehouse_name || "Not assigned"}</strong></div>
-              <div><span>Dispatch city</span><strong>{result.shipment.warehouse_city || "Not available"}</strong></div>
-              <div><span>Delivery agent</span><strong>{result.shipment.agent_name || "Not assigned"}</strong></div>
+              {!result.publicTracking && <>
+                <div><span>Warehouse</span><strong>{result.shipment.warehouse_name || "Not assigned"}</strong></div>
+                <div><span>Dispatch city</span><strong>{result.shipment.warehouse_city || "Not available"}</strong></div>
+                <div><span>Delivery agent</span><strong>{result.shipment.agent_name || "Not assigned"}</strong></div>
+              </>}
             </div>
           ) : <p className="empty">No shipment has been created for this order yet.</p>}
         </article>
@@ -108,14 +113,14 @@ export function OrderDetails({ result, showFullPageLink = false }: { result: Tra
         </article>
       </div>
 
-      <article className="panel products-panel">
+      {!result.publicTracking && <article className="panel products-panel">
         <div className="panel-heading"><div><p className="section-kicker">ORDER CONTENTS</p><h3>Products in this order</h3></div><span className="product-count">{result.items.length} item type(s)</span></div>
         {result.items.length ? (
           <div className="table-wrap"><table><thead><tr><th scope="col">PRODUCT</th><th scope="col">CATEGORY</th><th scope="col">QUANTITY</th><th scope="col">UNIT PRICE</th><th scope="col">SUBTOTAL</th></tr></thead>
             <tbody>{result.items.map((item) => <tr key={item.product_id}><td><strong>{item.product_name}</strong><small>Product #{item.product_id}</small></td><td>{item.category_name || "Uncategorized"}</td><td>{item.quantity}</td><td>{formatAmount(item.price)}</td><td>{formatAmount(Number(item.price) * Number(item.quantity))}</td></tr>)}</tbody>
           </table></div>
         ) : <p className="empty">No product items are recorded for this order.</p>}
-      </article>
+      </article>}
     </section>
   );
 }
