@@ -102,8 +102,8 @@ export function OrderDetails({ result, showFullPageLink = false }: { result: Tra
           <div className="panel-heading"><div><p className="section-kicker">TRACKING UPDATES</p><h3>Delivery timeline</h3></div><span className="package-icon" aria-hidden="true">⌁</span></div>
           {result.tracking.length ? (
             <ol className="timeline">
-              {result.tracking.map((event) => (
-                <li key={event.tracking_id}>
+              {result.tracking.map((event, index) => (
+                <li className={index === 0 ? "timeline-current" : "timeline-complete"} key={event.tracking_id}>
                   <span className="timeline-dot" aria-hidden="true" />
                   <div><strong>{event.status || "Update"}</strong><p>{event.current_location || "Location not provided"}</p><small>{formatDate(event.update_time)}</small></div>
                 </li>

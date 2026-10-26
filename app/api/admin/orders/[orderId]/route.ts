@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createOrderNotification } from "@/lib/admin-notifications";
 import { isApiError, requireApiAdmin, requireSameOrigin } from "@/lib/api-auth";
 import { DatabaseConfigurationError, getPool } from "@/lib/db";
+import { dispatchSmsSafely, enqueueOrderSms } from "@/lib/sms";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -146,7 +147,9 @@ export async function PATCH(request: Request, context: Context) {
   try {
     await client.query("BEGIN");
     const orderResult = await client.query(
-      `SELECT order_id, customer_id, order_status FROM orders WHERE order_id = $1 FOR UPDATE`,
+      `SELECT o.order_id, o.customer_id, o.order_status
+       FROM orders o WHERE o.order_id = $1
+       FOR UPDATE OF o`,
       [orderId]
     );
     if (orderResult.rowCount === 0) {
@@ -213,6 +216,7 @@ export async function PATCH(request: Request, context: Context) {
       shipmentId = inserted.rows[0].shipment_id;
     }
 
+    let smsId: number | null = null;
     if (statusChanged && shipmentStatus) {
       const orderStatus = shipmentStatus === "Delivered" ? "Delivered" : "Shipped";
       await client.query(`UPDATE orders SET order_status = $2 WHERE order_id = $1`, [orderId, orderStatus]);
@@ -230,6 +234,21 @@ export async function PATCH(request: Request, context: Context) {
           `tracking:${tracking.rows[0].tracking_id}`,
           `Order #${orderId} status updated: ${shipmentStatus}.`
         );
+        const smsEvent = ({
+          "Shipped": "order_dispatched",
+          "In Transit": "order_in_transit",
+          "Out for Delivery": "out_for_delivery",
+          "Delivered": "order_delivered"
+        } as const)[shipmentStatus as "Shipped" | "In Transit" | "Out for Delivery" | "Delivered"];
+        if (smsEvent) {
+          smsId = await enqueueOrderSms(
+            client,
+            order.customer_id,
+            orderId,
+            smsEvent,
+            `order:${orderId}:shipment:${shipmentId}:${shipmentStatus}`
+          );
+        }
       }
     }
 
@@ -261,7 +280,12 @@ export async function PATCH(request: Request, context: Context) {
     }
 
     await client.query("COMMIT");
-    return NextResponse.json({ success: true, changed: true });
+    const smsResult = smsId ? await dispatchSmsSafely(pool, smsId) : null;
+    return NextResponse.json({
+      success: true,
+      changed: true,
+      smsWarning: smsResult?.status === "failed" ? smsResult.message : null
+    });
   } catch (error) {
     await client.query("ROLLBACK");
     if (error instanceof DatabaseConfigurationError) {

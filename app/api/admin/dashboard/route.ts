@@ -45,7 +45,7 @@ export async function GET() {
 
   try {
     const pool = getPool();
-    const [summary, recentOrders, recentActivity, customers] = await Promise.all([
+    const [summary, recentOrders, recentActivity, customers, dailyOrders] = await Promise.all([
       pool.query(
         `${orders}
          SELECT COUNT(*) AS total_orders,
@@ -85,14 +85,28 @@ export async function GET() {
          ORDER BY activity_time DESC NULLS LAST, activity_id DESC
          LIMIT 8`
       ),
-      pool.query(`SELECT COUNT(*) AS total_customers FROM customers`)
+      pool.query(`SELECT COUNT(*) AS total_customers FROM customers`),
+      pool.query(
+        `SELECT order_date::date AS date,
+                COUNT(*) AS total,
+                COUNT(*) FILTER (
+                  WHERE LOWER(COALESCE(order_status, '')) LIKE '%deliver%'
+                    AND LOWER(COALESCE(order_status, '')) NOT LIKE '%undeliver%'
+                    AND LOWER(COALESCE(order_status, '')) NOT LIKE '%not deliver%'
+                ) AS delivered
+         FROM orders
+         WHERE order_date >= CURRENT_DATE - INTERVAL '6 days'
+         GROUP BY order_date::date
+         ORDER BY date`
+      )
     ]);
 
     return NextResponse.json({
       summary: summary.rows[0],
       recentOrders: recentOrders.rows,
       recentActivity: recentActivity.rows,
-      totalCustomers: customers.rows[0].total_customers
+      totalCustomers: customers.rows[0].total_customers,
+      dailyOrders: dailyOrders.rows
     });
   } catch (error) {
     if (error instanceof DatabaseConfigurationError) {

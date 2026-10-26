@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createOrderNotification } from "@/lib/admin-notifications";
 import { isApiError, requireApiAdmin, requireSameOrigin } from "@/lib/api-auth";
 import { DatabaseConfigurationError, getPool } from "@/lib/db";
+import { dispatchSmsSafely, enqueueOrderSms } from "@/lib/sms";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -72,7 +73,6 @@ export async function POST(request: Request) {
       await client.query("ROLLBACK");
       return NextResponse.json({ error: "The selected customer does not exist." }, { status: 400 });
     }
-
     const address = await client.query(
       `SELECT address_id FROM addresses
        WHERE address_id = $1 AND customer_id = $2
@@ -142,9 +142,22 @@ export async function POST(request: Request) {
       `order:${orderId}:created`,
       `Your order #${orderId} has been placed.`
     );
+    const smsId = await enqueueOrderSms(
+      client,
+      customerId,
+      orderId,
+      "order_placed",
+      `order:${orderId}:placed`
+    );
     await client.query("COMMIT");
+    const smsResult = smsId ? await dispatchSmsSafely(pool, smsId) : null;
 
-    return NextResponse.json({ success: true, orderId, totalAmount }, { status: 201 });
+    return NextResponse.json({
+      success: true,
+      orderId,
+      totalAmount,
+      smsWarning: smsResult?.status === "failed" ? smsResult.message : null
+    }, { status: 201 });
   } catch (error) {
     await client.query("ROLLBACK");
     if (error instanceof DatabaseConfigurationError) {

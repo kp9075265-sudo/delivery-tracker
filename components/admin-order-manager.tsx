@@ -104,7 +104,9 @@ export function AdminOrderManager({ orderId }: { orderId: string }) {
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "Could not update the shipment.");
-      setMessage(body.changed ? "Order and shipment changes saved." : "No changes were needed.");
+      setMessage(body.changed
+        ? `Order and shipment changes saved.${body.smsWarning ? ` SMS failed: ${body.smsWarning} See SMS history for details.` : ""}`
+        : "No changes were needed.");
       await loadOrder();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Could not save changes.");

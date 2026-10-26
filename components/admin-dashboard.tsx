@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AdminNavigation } from "@/components/admin-navigation";
+import { AnimatedStat } from "@/components/animated-stat";
 
 type AdminDashboardData = {
   summary: Record<string, number | string>;
@@ -24,6 +25,7 @@ type AdminDashboardData = {
     order_id: number;
     customer_name: string | null;
   }>;
+  dailyOrders?: Array<{ date: string; total: number | string; delivered: number | string }>;
 };
 
 function formatDate(value: string | null) {
@@ -86,17 +88,17 @@ export function AdminDashboard() {
             ["In transit", "in_transit_orders"],
             ["Delivered", "delivered_orders"]
           ].map(([label, key]) => (
-            <article className="summary-card" key={key}>
+            <article className="summary-card motion-enter" key={key}>
               <span className="card-label">{label}</span>
-              <strong>{loading && !data ? "…" : Number(data?.summary[key] ?? 0).toLocaleString()}</strong>
+              <strong><AnimatedStat value={data?.summary[key]} loading={loading && !data} /></strong>
               <span className="summary-note">Live database count</span>
             </article>
           ))}
-          <article className="summary-card"><span className="card-label">Total customers</span><strong>{loading && !data ? "…" : Number(data?.totalCustomers ?? 0).toLocaleString()}</strong><span className="summary-note">Customer records</span></article>
+          <article className="summary-card motion-enter"><span className="card-label">Total customers</span><strong><AnimatedStat value={data?.totalCustomers} loading={loading && !data} /></strong><span className="summary-note">Customer records</span></article>
         </section>
 
         <section className="admin-analytics">
-          <article className="panel">
+          <article className="panel motion-enter">
             <div className="panel-heading"><div><p className="section-kicker">ALL ORDERS</p><h2>Status distribution</h2></div></div>
             {total > 0 ? <div className="distribution-chart">
               {chartItems.map(([label, value, tone]) => (
@@ -107,7 +109,7 @@ export function AdminDashboard() {
               ))}
             </div> : <p className="empty">{loading ? "Loading order statistics…" : "No orders available."}</p>}
           </article>
-          <article className="panel">
+          <article className="panel motion-enter">
             <div className="panel-heading"><div><p className="section-kicker">LATEST TRACKING</p><h2>Recent order activity</h2></div></div>
             {data?.recentActivity.length ? <ol className="activity-list">
               {data.recentActivity.map((activity) => (
@@ -120,6 +122,30 @@ export function AdminDashboard() {
               ))}
             </ol> : <p className="empty">{loading ? "Loading activity…" : "No tracking activity yet."}</p>}
           </article>
+        </section>
+
+        <section className="panel motion-enter admin-daily-panel">
+          <div className="panel-heading"><div><p className="section-kicker">LAST 7 DAYS</p><h2>Daily order activity</h2></div></div>
+          {data?.dailyOrders?.length ? (
+            <div className="daily-chart" role="img" aria-label="Daily orders and delivered orders for the last seven days">
+              {data.dailyOrders.map((day) => {
+                const total = Number(day.total);
+                const delivered = Number(day.delivered);
+                const max = Math.max(...data.dailyOrders!.map((entry) => Number(entry.total)), 1);
+                return (
+                  <div className="daily-chart-column" key={day.date} title={`${total} orders, ${delivered} delivered`}>
+                    <div className="daily-chart-bars">
+                      <span className="daily-chart-total" style={{ height: `${Math.max(total > 0 ? 6 : 0, (total / max) * 100)}%` }} />
+                      <span className="daily-chart-delivered" style={{ height: `${Math.max(delivered > 0 ? 6 : 0, (delivered / max) * 100)}%` }} />
+                    </div>
+                    <strong>{new Date(`${day.date}T00:00:00`).toLocaleDateString(undefined, { weekday: "short" })}</strong>
+                    <small>{total}</small>
+                  </div>
+                );
+              })}
+            </div>
+          ) : <p className="empty">{loading ? "Loading daily activity…" : "No recent order activity."}</p>}
+          <p className="chart-legend"><span className="legend-total" /> Total orders <span className="legend-delivered" /> Delivered orders</p>
         </section>
 
         <section className="panel orders-panel">

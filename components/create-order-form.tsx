@@ -69,7 +69,7 @@ export function CreateOrderForm() {
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "Could not create the order.");
-      setSuccess(`Order #${body.orderId} created. Server-calculated total: ₹${Number(body.totalAmount).toFixed(2)}.`);
+      setSuccess(`Order #${body.orderId} created. Server-calculated total: ₹${Number(body.totalAmount).toFixed(2)}.${body.smsWarning ? ` SMS failed: ${body.smsWarning} See SMS history for details.` : ""}`);
       setItems([{ productId: "", quantity: "1" }]);
       form.reset();
       setCustomerId("");

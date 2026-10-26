@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 type Notification = {
   notification_id: number;
@@ -26,21 +26,43 @@ export function NotificationBell() {
   const [data, setData] = useState<NotificationResponse>({ unreadCount: 0, notifications: [] });
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
+  const [toast, setToast] = useState("");
+  const previousUnread = useRef<number | null>(null);
+  const toastTimeout = useRef<number | null>(null);
 
-  async function loadNotifications() {
+  const loadNotifications = useCallback(async (notifyOnIncrease = false) => {
     try {
-      const response = await fetch("/api/notifications");
+      const response = await fetch("/api/notifications", { cache: "no-store" });
       const body = await response.json();
-      if (!response.ok) throw new Error(body.error || "Could not load notifications.");
+      if (!response.ok) {
+        if (response.status === 401) {
+          setError("Sign in to view your private customer notifications.");
+          return;
+        }
+        throw new Error(body.error || "Could not load notifications.");
+      }
+      if (notifyOnIncrease && previousUnread.current !== null && body.unreadCount > previousUnread.current) {
+        setToast("You have a new delivery notification.");
+        if (toastTimeout.current) window.clearTimeout(toastTimeout.current);
+        toastTimeout.current = window.setTimeout(() => setToast(""), 4500);
+      }
+      previousUnread.current = body.unreadCount;
       setData(body);
       setError("");
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Could not load notifications.");
     }
-  }
+  }, []);
 
   useEffect(() => {
+    if (!open) return;
     void loadNotifications();
+    const interval = window.setInterval(() => void loadNotifications(true), 60000);
+    return () => window.clearInterval(interval);
+  }, [loadNotifications, open]);
+
+  useEffect(() => () => {
+    if (toastTimeout.current) window.clearTimeout(toastTimeout.current);
   }, []);
 
   async function markRead(notificationId: number) {
@@ -72,7 +94,7 @@ export function NotificationBell() {
   return (
     <div className="notification-menu">
       <button
-        className="notification-trigger"
+        className={`notification-trigger${data.unreadCount > 0 ? " has-unread" : ""}`}
         type="button"
         aria-label={`Notifications, ${data.unreadCount} unread`}
         aria-expanded={open}
@@ -93,6 +115,7 @@ export function NotificationBell() {
             </button>
           </div>
           {error && <p className="notification-error" role="alert">{error}</p>}
+          {error.includes("Sign in") && <Link className="nav-link notification-login-link" href="/login">Customer sign in</Link>}
           {data.notifications.length === 0 && !error && <p className="empty">No notifications yet.</p>}
           <ul className="notification-list">
             {data.notifications.map((notification) => (
@@ -113,6 +136,7 @@ export function NotificationBell() {
           </ul>
         </section>
       )}
+      {toast && <div className="notification-toast" role="status">{toast}</div>}
     </div>
   );
 }

@@ -15,7 +15,8 @@ export function AdminNavigation() {
     { href: "/admin/data/delivery_agents", label: "Delivery agents" },
     { href: "/admin/data/tracking_updates", label: "Tracking updates" },
     { href: "/admin/data/warehouses", label: "Warehouses" },
-    { href: "/admin/data/notifications", label: "Notifications" }
+    { href: "/admin/data/notifications", label: "Notifications" },
+    { href: "/admin/sms", label: "SMS history" }
   ];
 
   return (

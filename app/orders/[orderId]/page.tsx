@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { OrderDetails, type TrackingResult } from "@/components/order-details";
+import { NotificationBell } from "@/components/notification-bell";
 
 export default function OrderPage() {
   const { orderId } = useParams<{ orderId: string }>();
@@ -45,6 +46,8 @@ export default function OrderPage() {
         </Link>
         <div className="nav-actions">
           <span className="nav-label">ORDER DETAILS</span>
+          <NotificationBell />
+          <Link className="nav-link customer-login-link" href="/login">Customer sign in</Link>
           <Link className="primary-button nav-create" href="/admin">Admin</Link>
         </div>
       </nav>

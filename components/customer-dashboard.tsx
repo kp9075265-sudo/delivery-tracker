@@ -3,6 +3,8 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { OrderDetails, type TrackingResult } from "@/components/order-details";
+import { AnimatedStat } from "@/components/animated-stat";
+import { NotificationBell } from "@/components/notification-bell";
 
 type StatusGroup = "pending" | "in_transit" | "delivered" | "other";
 
@@ -125,6 +127,8 @@ export function CustomerDashboard() {
         </a>
         <div className="nav-actions">
           <span className="nav-label">DELIVERY OPERATIONS</span>
+          <NotificationBell />
+          <Link className="nav-link customer-login-link" href="/login">Customer sign in</Link>
           <Link className="primary-button nav-create" href="/admin">Admin</Link>
         </div>
       </nav>
@@ -150,16 +154,16 @@ export function CustomerDashboard() {
             { label: "Pending / processing", value: dashboard?.summary.pending_orders, tone: "pending" },
             { label: "In transit", value: dashboard?.summary.in_transit_orders, tone: "transit" }
           ].map((card) => (
-            <article className={`summary-card ${card.tone}`} key={card.label}>
+            <article className={`summary-card ${card.tone} motion-enter`} key={card.label}>
               <span className="card-label">{card.label}</span>
-              <strong>{dashboardLoading && !dashboard ? "…" : Number(card.value ?? 0).toLocaleString()}</strong>
+              <strong><AnimatedStat value={card.value} loading={dashboardLoading && !dashboard} /></strong>
               <span className="summary-note">Live database count</span>
             </article>
           ))}
         </section>
 
         <section className="analytics-grid" aria-label="Delivery analytics" aria-busy={dashboardLoading}>
-          <article className="panel success-panel">
+          <article className="panel success-panel motion-enter">
             <p className="section-kicker">DELIVERY PERFORMANCE</p>
             <h2>Delivery success</h2>
             <strong className="success-rate">
@@ -171,7 +175,7 @@ export function CustomerDashboard() {
                 : "No orders are available to calculate a delivery rate."}
             </p>
           </article>
-          <article className="panel distribution-panel">
+          <article className="panel distribution-panel motion-enter">
             <div className="panel-heading">
               <div><p className="section-kicker">LIVE DATABASE COUNTS</p><h2>Order status distribution</h2></div>
             </div>
